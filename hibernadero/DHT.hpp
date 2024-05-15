@@ -37,7 +37,4 @@ class DHT{
         
 };
 
-
-
-
 #endif

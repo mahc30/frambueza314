@@ -11,7 +11,7 @@ CXXFLAGS = -std=c++20 -DDEBUG
 LDFLAGS = -lwiringPi -lwiringPiDev
 
 # Source files
-SOURCES = main.cpp
+SOURCES = led.cpp DHT.cpp lcd.c main.cpp
 
 # Object files
 OBJECTS = $(SOURCES:.cpp=.o)
