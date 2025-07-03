@@ -7,109 +7,17 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <signal.h>
+#include "client_handler.h"
+
 #define PORT 666
 #define BUF_SIZE 128
 #define MAX_CLIENTS 2
-
-struct client_t
-{
-    int id;
-    int socket;
-    int rxState;
-};
 
 int connected_users = 0;
 int client_threads[MAX_CLIENTS];
 struct client_t clients[MAX_CLIENTS];
 pthread_t read_threads[MAX_CLIENTS];
 pthread_t check_threads[MAX_CLIENTS];
-
-void *readThread(void *arg)
-{
-    printf("Initializing Reader Thread");
-	struct client_t *client = ((struct client_t *)arg);
-	char buf[BUF_SIZE];
-
-	while (1)
-	{
-        if(ValidateClient(client) == 1) break;
-		if(SanitizeBufferInput(buf) == 1) break;
-		if(ReadBuffer(client, buf) == 1) break;	
-		ExecuteBufferInput(buf);
-	}
-
-	printf("Terminate Pthread for reading\n");
-	client->rxState = 0;
-	return NULL;
-}
-
-int ReadBuffer(struct client_t* client, char* buf)
-{
-    ssize_t numOfBytes = read(client->socket, buf, BUF_SIZE);
-	if (0 == numOfBytes)
-	{
-		printf("client closed the socket end\n");
-		return 1;
-	}
-	else if (-1 == numOfBytes)
-	{
-		perror("ReadThread read() fails: ");
-		return 1;
-	}
-	return 0;
-}
-
-int ValidateClient(struct client_t* client){
-    if (!client) {
-        fprintf(stderr, "client is NULL\n");
-        return 1;
-    }
-    
-    if (client->socket < 0) {
-        fprintf(stderr, "Invalid socket: %d\n", client->socket);
-        return 1;
-    }
-    return 0;
-}
-
-int SanitizeBufferInput(char* buf){
-    if (!buf) {
-        fprintf(stderr, "buf is NULL\n");
-        return 1;
-    }
-    return 0;
-}
-
-void ExecuteBufferInput(char* buf){
-
-    if (0 == strncmp(buf, ":exit", strlen(":exit")))
-    {
-        printf("Client exit\n");
-    }
-    if(0 == strncmp(buf, ":pene", strlen(":pene"))){
-        printf("PENEPE");
-    }    
-}
-
-void *check_clients(void *arg)
-{
-	struct client_t *client = arg;
-
-	while (1)
-	{
-		if (0 == client->rxState)
-		{
-			printf("Client closed the socket\n");
-			clients[client->id] = clients[client->id + 1];
-			read_threads[client->id] = NULL;
-			connected_users--;
-			break;
-		}
-	}
-
-	close(client->socket);
-	return NULL;
-}
 
 int main(int argc, char *argv[])
 {
@@ -194,7 +102,6 @@ int main(int argc, char *argv[])
 		printf("Added Client:\n ID: %d in position %d\n",
 			   clients[connected_users].id, connected_users);
 
-		printf("Create Pthread for reading\n");
 		status = pthread_create(&read_threads[connected_users], NULL, &readThread,
 								&clients[connected_users]);
 
@@ -204,16 +111,6 @@ int main(int argc, char *argv[])
 			close(server_sd);
 			exit(EXIT_FAILURE);
 		}
-
-		status = pthread_create(&check_threads[connected_users], NULL, &check_clients, &clients[connected_users]);
-		if (-1 == status)
-		{
-			perror("Pthread Check Clients Fails: ");
-			close(server_sd);
-			exit(EXIT_FAILURE);
-		}
-
-		connected_users++;
 	}
 
 	exit(EXIT_SUCCESS);
