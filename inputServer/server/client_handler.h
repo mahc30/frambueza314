@@ -3,22 +3,19 @@
 
 #include <stddef.h>  // for NULL
 #include <unistd.h>  // for ssize_t
+#include "client.h"
 
 #define BUF_SIZE 128
 
-// Forward declaration of client struct
-struct client_t {
-    int id;
-    int socket;
-    int rxState;
-};
+void *ReadThread(void *arg);
+void *CheckClients(void *arg);
 
-void *readThread(void *arg);
-void *checkClients(void *arg);
-
-int ReadBuffer(struct client_t *client, char *buf);
+int ReadBuffer(char *buf);
 int ValidateBufferInput(char *buf);
-int ExecuteBufferInput(char *buf);
-int ValidateClient(struct client_t *client);
+void ExecuteBufferInput(char *buf);
+int ValidateClient();
+struct client_t AcceptClient(int server_sd);
+void ResetClient();
+void HandleNewClient(int server_sd);
 
-#endif // CLIENT_HANDLER_H
+#endif // CLIENT_H

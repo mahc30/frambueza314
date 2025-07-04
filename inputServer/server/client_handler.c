@@ -1,37 +1,43 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include "client_handler.h"
+#include "client.h"
 #include "../util/log.h"
 
 #define BUF_SIZE 128
 
-void *readThread(void *arg)
+int connected_users = 0;
+struct client_t client;
+pthread_t client_thread;
+
+void *ReadThread(void *arg)
 {
-	Log_msg("Create Pthread for reading\n");
+	Log_msg("Create Pthread for reading");
 	struct client_t *client = ((struct client_t *)arg);
 	char buf[BUF_SIZE];
 	int status;
 
 	while (1)
 	{
-		Log_msg("LOOP\n");
-        if(ValidateClient(client) == 1) break;
+        if(ValidateClient() == 1) break;
 		if(ValidateBufferInput(buf) == 1) break;
-		if(ReadBuffer(client, buf) == 1) break;	
+		if(ReadBuffer(buf) == 1) break;	
 		ExecuteBufferInput(buf);
 	}
 
-	Log_msg("Terminate Pthread for reading\n");
-	client->rxState = 0;
+	Log_msg("Terminate Pthread for reading");
+	HandleClientExit();
 	return NULL;
 }
 
-int ReadBuffer(struct client_t *client, char *buf)
+int ReadBuffer(char *buf)
 {
 	ssize_t numOfBytes;
-	numOfBytes = read(client->socket, buf, BUF_SIZE);
+	numOfBytes = read(client.socket, buf, BUF_SIZE);
 	if (0 == numOfBytes)
 	{
-		Log_msg("client closed the socket end\n");
+		Log_msg("Client closed the socket end");
+		HandleClientExit();
 		return 1;
 	}
 	else if (-1 == numOfBytes)
@@ -40,36 +46,110 @@ int ReadBuffer(struct client_t *client, char *buf)
 		return 1;
 	}
 
-	Log_msg("TODO SANITIZE BUFFER INPUT\n");
+	//Log_msg("TODO SANITIZE BUFFER INPUT");
 	return 0;
 }
 
 int ValidateBufferInput(char* buf){
-	Log_msg("TODO Validate BUFFER INPUT\n");
+	//Log_msg("TODO Validate BUFFER INPUT");
 	return 0;
 }
 
-int ExecuteBufferInput(char* buf){
+void ExecuteBufferInput(char* buf){
 		if (0 == strncmp(buf, ":exit", strlen(":exit")))
 		{
-			Log_msg("Client exit\n");
-			return 1;
+			Log_msg("Client exit");
+			HandleClientExit();
 		}
 		if(0 == strncmp(buf, ":pene", strlen(":pene"))){
     	    Log_msg("PENEPE");
     	} 
-		return 0;
 }
 
-int ValidateClient(struct client_t* client){
-    if (!client) {
-        Log_msg("client is NULL\n");
+int ValidateClient(){
+    if (!&client) {
+        Log_msg("client is NULL");
         return 1;
     }
     
-    if (client->socket < 0) {
-        Log_msg("Invalid socket: %d\n", client->socket);
+    if (client.socket < 0) {
+        Log_msg("Invalid socket: %d", client.socket);
         return 1;
     }
+
     return 0;
+}
+
+struct client_t AcceptClient(int server_sd){
+	int client_sd;
+	int status;
+	// 6. Accept:
+	if(connected_users == 0){
+	 	Log_msg("Waiting for a client");
+	}
+	
+	client_sd = accept(server_sd, NULL, NULL);
+	
+	if(connected_users > 0){
+		const char *reject_msg = "Server full. Try again later.\n";
+		send(client_sd, reject_msg, strlen(reject_msg), 0);
+
+		close(client_sd);
+		return client; 
+	}
+	
+	if (-1 == client_sd)
+	{
+		perror("Accept fails: ");
+		close(server_sd);
+		exit(EXIT_FAILURE);
+	}
+
+	client.socket = client_sd;
+	client.rxState = 1;
+	Log_msg("Client Accepted");
+	connected_users = 1;
+
+	HandleNewClient(server_sd);
+
+	return client;
+}
+
+void HandleNewClient(int server_sd){
+	int status;
+
+	if(!client_thread){
+		Log_msg("Starting new client thread");
+		status = pthread_create(&client_thread, 
+			NULL, 
+			&ReadThread,
+			&client);
+	}
+
+	if (status == -1)
+	{
+		perror("Pthread read fails: ");
+		close(server_sd);
+		exit(EXIT_FAILURE);
+	}
+}
+
+void HandleClientExit(){
+	pthread_join(client_thread, NULL);
+	client_thread = NULL;
+	ResetClient();
+}
+
+void ResetClient(){
+	Log_msg("Resetting Client");
+	client.socket = -1;
+	client.rxState = 0;
+	connected_users = 0;
+	//PrintClient();
+}
+
+void PrintClient(){
+	char clientInfo[1000];
+	sprintf(clientInfo, "Client sd:%d rxState: %d", client.socket, client.rxState);
+	Log_msg(clientInfo);
 }
