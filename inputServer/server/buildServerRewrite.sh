@@ -1,5 +1,5 @@
 !#bin/bash
 rm sr
-gcc serverRewrite.c client_handler.c ../util/log.c -o sr -lpthread
+gcc server.c client_handler.c ../util/log.c -o server -lpthread
 chmod +x sr
-./sr
+./server
